@@ -1,9 +1,12 @@
 #include "grabberinterface.h"
 #include "common.h"
 #include "common.c"
-#include "mythread.h"
+#include "pdl_api.h"
+#include "phx_api.h"
+#include "phx_os.h"
 
 #include <QtGui>
+#include <QThread>
 
 #define MAX_SZ_CHARS 256   /* Maximum string length */
 
@@ -54,7 +57,12 @@ void GrabberInterface::open(QString cameraConfigFile)
     PhxCommonParseCmd( 0, argv, &phxGrabberInfo );
     PhxCommonKbInit();
 
+    messageOutput("Starting Live Picture!");
+
+    _aboutLivePicture = false;
     nStatus = livePicture( phxGrabberInfo.eCamConfigLoad, _cameraConfigFile );
+
+    PhxCommonKbClose();
 }
 
 //#endif
@@ -63,7 +71,7 @@ void GrabberInterface::open(QString cameraConfigFile)
 
 void GrabberInterface::close()
 {
-   PhxCommonKbClose();
+   _aboutLivePicture = true;
    messageOutput("Connection closed");
 }
 
@@ -100,28 +108,31 @@ int GrabberInterface::livePicture(
    if ( PHX_OK != eStatus ) goto Error;
 
 
+#define _PHX_DISPLAY
+
 #if defined _PHX_DISPLAY
    /* We create our display with a NULL hWnd, this will automatically create an image window. */
-   eStat = PDL_DisplayCreate( &hDisplay, NULL, hCamera, PHX_ErrHandlerDefault );
-   if ( PHX_OK != eStat ) goto Error;
+   eStatus = PDL_DisplayCreate( &hDisplay, NULL, hCamera, PHX_ErrHandlerDefault );
+   if ( PHX_OK != eStatus ) goto Error;
 
    /* We create two display buffers for our double buffering */
-   eStat = PDL_BufferCreate( &hBuffer1, hDisplay, (etBufferMode)PDL_BUFF_SYSTEM_MEM_DIRECT );
-   if ( PHX_OK != eStat ) goto Error;
-   eStat = PDL_BufferCreate( &hBuffer2, hDisplay, (etBufferMode)PDL_BUFF_SYSTEM_MEM_DIRECT );
-   if ( PHX_OK != eStat ) goto Error;
+   eStatus = PDL_BufferCreate( &hBuffer1, hDisplay, (etBufferMode)PDL_BUFF_SYSTEM_MEM_DIRECT );
+   if ( PHX_OK != eStatus ) goto Error;
+   eStatus = PDL_BufferCreate( &hBuffer2, hDisplay, (etBufferMode)PDL_BUFF_SYSTEM_MEM_DIRECT );
+   if ( PHX_OK != eStatus ) goto Error;
 
    /* Initialise the display, this associates the display buffers with the display */
-   eStat =  PDL_DisplayInit( hDisplay );
-   if ( PHX_OK != eStat ) goto Error;
+   eStatus =  PDL_DisplayInit( hDisplay );
+   if ( PHX_OK != eStatus ) goto Error;
 
    /* The above code has created 2 display (acquisition) buffers.
     * Therefore ensure that the Phoenix is configured to use 2 buffers, by overwriting
     * the value already loaded from the config file.
     */
-   eParamValue = 2;
-   eStat = PHX_ParameterSet( hCamera, PHX_ACQ_NUM_IMAGES, &eParamValue );
-   if ( PHX_OK != eStat ) goto Error;
+
+   eParamValue = PHX_DISABLE;
+   eStatus = PHX_ParameterSet( hCamera, PHX_ACQ_NUM_IMAGES, &eParamValue );
+   if ( PHX_OK != eStatus ) goto Error;
 #endif
 
 
@@ -144,7 +155,7 @@ int GrabberInterface::livePicture(
     * or Phoenix detects a FIFO overflow
     */
    printf("Press a key to exit\n");
-   while(!PhxCommonKbHit() && !phxUserInfo.fFifoOverFlow)
+   while(!_aboutLivePicture && !PhxCommonKbHit() && !phxUserInfo.fFifoOverFlow)
    {
       /* Temporarily sleep, to avoid burning CPU cycles.
        * An alternative method is to wait on a semaphore, which is signalled
@@ -192,7 +203,8 @@ int GrabberInterface::livePicture(
 #if defined _PHX_DISPLAY
          PDL_BufferPaint( (tPHX)stBuffer.pvContext );
 #else
-         printf("EventCount = %5d\r", phxUserInfo.nBufferReadyCount );
+         //printf("EventCount = %5d\r", phxUserInfo.nBufferReadyCount );
+         messageOutput("EventCount = " + QString::number((int) phxUserInfo.nBufferReadyCount, 5));
 #endif
 
          /* Having processed the data, release the buffer ready for further image data */
@@ -200,15 +212,13 @@ int GrabberInterface::livePicture(
          if ( PHX_OK != eStatus ) goto Error;
       }
    }
-   printf("\n");
-
 
    /* In this simple example we abort the processing loop on an error condition (FIFO overflow).
     * However handling of this condition is application specific, and generally would involve
     * aborting the current acquisition, and then restarting.
     */
-   if ( phxUserInfo.fFifoOverFlow )
-      printf("FIFO OverFlow detected..Aborting\n");
+   if ( phxUserInfo.fFifoOverFlow )      
+      messageOutput("FIFO OverFlow detected..Aborting\n");
 
 Error:
    /* Now cease all captures */
@@ -226,7 +236,8 @@ Error:
    /* Release the Phoenix board */
    if ( hCamera ) PHX_CameraRelease( &hCamera );
 
-   printf("Exiting\n");
+   messageOutput("Exiting\n");
+
    return 0;
 
 

@@ -5,11 +5,13 @@ TEMPLATE = app
 
 SOURCES += main.cpp \
     grabberinterface.cpp \
-    grabberconsolewidget.cpp
+    grabberconsolewidget.cpp \
+    grabberthread.cpp
 
 HEADERS += \
     grabberinterface.h \
-    grabberconsolewidget.h
+    grabberconsolewidget.h \
+    grabberthread.h
 
 include(PhoenixSDK.pri)
 

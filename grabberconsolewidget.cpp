@@ -11,7 +11,7 @@ GrabberConsoleWidget::GrabberConsoleWidget(QWidget *parent) :
     QGridLayout *layout = new QGridLayout;
     layout->addWidget(_logTextEdit);
 
-    setMinimumSize(500, 800);
+    setMinimumSize(250, 400);
 
     setLayout(layout);
 }

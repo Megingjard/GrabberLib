@@ -36,10 +36,12 @@ private:
     int     nStatus;
     QString _cameraConfigFile;
     QString _lastError;
+    bool _aboutLivePicture;
 
     tPhxCmd phxGrabberInfo;
 
     int livePicture(etCamConfigLoad eCamConfigLoad, QString cameraConfigFile);
+
 
 };
 

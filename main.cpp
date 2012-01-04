@@ -3,8 +3,7 @@
 
 #include "grabberconsolewidget.h"
 #include "grabberinterface.h"
-#include "livewidget.h"
-
+#include "grabberthread.h"
 
 int main(int argc, char *argv[])
 {
@@ -16,7 +15,9 @@ int main(int argc, char *argv[])
     grabberConsoleWidget.setInterface(&grabberinterface);
     grabberConsoleWidget.show();
 
-    grabberinterface.open("D:/BaslerDefault.pcf");
+    GrabberThread grabberThread;
+    grabberThread.setInterface(&grabberinterface);
+    grabberThread.start();
 
     return a.exec();
 }
