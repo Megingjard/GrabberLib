@@ -11,13 +11,12 @@ int main(int argc, char *argv[])
 
     GrabberInterface grabberinterface;
 
-    GrabberConsoleWidget grabberConsoleWidget;
-    grabberConsoleWidget.setInterface(&grabberinterface);
-    grabberConsoleWidget.show();
-
     GrabberThread grabberThread;
     grabberThread.setInterface(&grabberinterface);
-    grabberThread.start();
+
+    GrabberConsoleWidget grabberConsoleWidget;
+    grabberConsoleWidget.setInterface(&grabberinterface, &grabberThread);
+    grabberConsoleWidget.show();
 
     return a.exec();
 }
