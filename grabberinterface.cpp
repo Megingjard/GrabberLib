@@ -68,8 +68,6 @@ void GrabberInterface::open(QString _cameraConfigFile)
     releaseGrabber();
 }
 
-//--------------------------------------------------------------------
-
 void GrabberInterface::close()
 {
     setState(false);
@@ -96,7 +94,7 @@ bool GrabberInterface::isOpened() const
     return _isOpened;
 }
 
-
+//------ This function should be a member of GrabberInterface --------
 void grabberErrorHandler( const char* pszFnName, etStat eErrCode, const char* pszDescString )
 {
     QString Error = "Phx Error: "
@@ -108,8 +106,6 @@ void grabberErrorHandler( const char* pszFnName, etStat eErrCode, const char* ps
 
     //messageOutput(_lastError + "\nAborting...\n");
 }
-
-//--------------------------------------------------------------------
 
 bool GrabberInterface::configureGrabber()
 {
@@ -174,8 +170,8 @@ bool GrabberInterface::configureGrabber()
        return false;
    }
 
-   eParamValue = PHX_DISABLE;
-   eStatus = PHX_ParameterSet( hCamera, PHX_ACQ_NUM_IMAGES, &eParamValue );
+   int AcquireNr = 2;
+   eStatus = PHX_ParameterSet( hCamera, PHX_ACQ_NUM_IMAGES, &AcquireNr );
    if ( PHX_OK != eStatus ) {
        _lastError = "Parameter error: Acquired number of images";
        return false;
@@ -308,6 +304,4 @@ void GrabberInterface::releaseGrabber()
     messageOutput("Grabber released\n\n - - - - - - - - - - - - - - - \n");
 
 }
-
-
 

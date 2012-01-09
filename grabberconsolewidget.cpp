@@ -37,6 +37,8 @@ void GrabberConsoleWidget::setInterface(GrabberInterface *grabberinterface, Grab
     connect(_grabberinterface, SIGNAL(messageOutput(QString)), this, SLOT(messageOutput(QString)), Qt::QueuedConnection);
     connect(_grabberinterface, SIGNAL(updateEventCounter(int)), this, SLOT(updateEventCounter(int)), Qt::QueuedConnection);
     connect(_grabberinterface, SIGNAL(grabberStatusChanged()), this, SLOT(grabberStatusChanged()), Qt::QueuedConnection);
+
+    useEventCounterCheckbox->setChecked(true);
 }
 
 void GrabberConsoleWidget::messageOutput(const QString& message)

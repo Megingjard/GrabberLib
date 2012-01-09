@@ -13,9 +13,9 @@ private:
     void run();
 
 signals:
-    
+
 public slots:
-    
+
 public:
     void setInterface(GrabberInterface *grabberinterface);
 };

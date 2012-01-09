@@ -68,4 +68,5 @@ private:
 };
 
 
+
 #endif // GRABBERINTERFACE_H
