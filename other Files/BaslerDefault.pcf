@@ -1,6 +1,6 @@
 # ==========================
 # Phoenix Configuration File
-# D:\flashcapture\Desktop\CameraSetting_2VertTaps.pcf
+# D:\flashcapture\Desktop\Phoenix mit Basler avA2300-30kc (12 Bit) 1X-2YE.pcf
 # ==========================
 
 # Camera Specific Settings
@@ -14,7 +14,7 @@ PHX_CAM_SRC_DEPTH,         12
 PHX_CAM_SRC_COL,           PHX_CAM_SRC_MONO
 PHX_CAM_ACTIVE_XOFFSET,    0
 PHX_CAM_ACTIVE_YOFFSET,    0
-PHX_CAM_ACTIVE_XLENGTH,    2236
+PHX_CAM_ACTIVE_XLENGTH,    2336
 PHX_CAM_ACTIVE_YLENGTH,    1752
 PHX_CAM_DATA_VALID,        PHX_DISABLE
 PHX_CAM_HTAP_NUM,          1
@@ -65,9 +65,9 @@ PHX_ROI_SRC_XOFFSET,       0
 PHX_ROI_SRC_YOFFSET,       0
 PHX_ROI_DST_XOFFSET,       0
 PHX_ROI_DST_YOFFSET,       0
-PHX_ROI_XLENGTH,           2236
+PHX_ROI_XLENGTH,           2336
 PHX_ROI_YLENGTH,           1752
-PHX_BUF_DST_XLENGTH,       4472
+PHX_BUF_DST_XLENGTH,       4672
 PHX_BUF_DST_YLENGTH,       1752
 PHX_CAPTURE_FORMAT,        PHX_DST_FORMAT_Y12
 PHX_USER_FORMAT,           PHX_USER_FORMAT_Y8
