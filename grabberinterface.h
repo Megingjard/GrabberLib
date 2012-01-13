@@ -16,7 +16,6 @@ typedef struct
    volatile tFlag fFifoOverFlow;
 } EventContext;
 
-
 //--------------------------------------------------------------------
 
 class GrabberInterface : public QObject
@@ -29,44 +28,49 @@ public:
 
     void open(QString cameraConfigFile);
     void close();
-
     bool isOpened() const;
 
     QString lastError() const;
+    void grabberErrorHandler( const char* pszFnName, etStat eErrCode, const char* pszDescString);
+    void grabberCallack( tHandle hCamera, ui32 dwInterruptMask, void *pvParams );
 
 signals:
-    void messageOutput(const QString& message);
+
     void grabberStatusChanged();
-    void updateEventCounter(const int count);
+    void messageOutput(const QString& message);
+    void updateImageCounter(const uint count);
 
 public slots:
-    void setEventCounterUsage(bool useEventCounter);
+    void setImageCounterUsage(bool useEventCounter);
 
 protected:
     void run();
 
 private:
-    int     nStatus;
-    QString _cameraConfigFile;
-    QString _lastError;
-    bool _isOpened;
-    bool _useEventCounter;
 
     QString cameraConfigFile;
     tPhxCmd phxGrabberInfo;
-    tHandle        hCamera;
-    tPHX           hDisplay;
-    tPHX           hBuffer1;
-    tPHX           hBuffer2;
-    EventContext   eventContext;         // User defined Event Context
+    tHandle hCamera;
+    tPHX hBuffer1;
+    tPHX hBuffer2;
+    stImageBuff asImageBuffs[3];
+    EventContext   eventContext;
+    bool _isOpened;
+
+    QString _lastError;
+
+    bool _useImageCounter;
+    uint _ImageCounter;
+
+    // - - - - - - - - - -
 
     bool configureGrabber();
-    bool livePicture();
+    bool startGrabber();
     void releaseGrabber();
+
     void setState(bool isOpened);
-
+    void resetImageCounter();
 };
-
 
 
 #endif // GRABBERINTERFACE_H

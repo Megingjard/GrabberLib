@@ -3,6 +3,7 @@ win32 {
     LIBS += -Ld:/Libraries/Phoenix/Lib/win32
     LIBS += -lphxlw32
     LIBS += -lpdlw32
+    LIBS += -lphxbl
 
 
 }

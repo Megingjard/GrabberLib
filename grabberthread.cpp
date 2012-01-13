@@ -9,5 +9,7 @@ void GrabberThread::setInterface (GrabberInterface *grabberinterface)
 
 void GrabberThread::run()
 {
-    _grabberinterface->open("D:/BaslerDefault.pcf");
+    _grabberinterface->open("D:/Basler_8Bit_Mono.pcf");
+
+//    _grabberinterface->open(":/cameraconfig/Basler_8Bit_Mono.pcf");
 }

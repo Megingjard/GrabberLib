@@ -1,0 +1,9 @@
+#include "previerwidget.h"
+
+PrevierWidget::PrevierWidget(QObject *parent) :
+    QGLWidget(parent)
+{
+    elapsed = 0;
+    setFixedSize(400, 300);
+    setAutoFillBackground(false);
+}

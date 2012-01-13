@@ -2,8 +2,10 @@
 #define GRABBERCONSOLEWIDGET_H
 
 #include <QtGui>
+#include <QGLWidget>
 #include "grabberinterface.h"
 #include "grabberthread.h"
+#include "previewwidget.h"
 
 class GrabberConsoleWidget : public QWidget
 {
@@ -16,21 +18,25 @@ signals:
     
 public slots:
     void messageOutput(const QString& message);
-    void updateEventCounter(const int count);
+    void updateImageCounter(const uint count);
     void grabberStatusChanged();
+
+    void updatePreviewDisplay();
 
 private:
     QPushButton *startStopButton;
-    QCheckBox *useEventCounterCheckbox;
-    QLabel *eventCounterLabel;
+    QCheckBox *useImageCounterCheckbox;
+    QLabel *imageCounterLabel;
+
     QPlainTextEdit *logTextEdit;
+    PreviewWidget *previewDisplay;
 
     GrabberInterface *_grabberinterface;
     GrabberThread *_grabberThread;
 
 private slots:
     void startStopButton_Clicked();
-    void useEventCounterCheckbox_stateChanged();
+    void useImageCounterCheckbox_stateChanged();
     
 };
 

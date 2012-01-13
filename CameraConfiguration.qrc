@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/cameraconfig">
+        <file>Basler_12Bit_Mono.pcf</file>
+        <file>Basler_8Bit_Mono.pcf</file>
+    </qresource>
+</RCC>

@@ -9,24 +9,26 @@ GrabberConsoleWidget::GrabberConsoleWidget(QWidget *parent) :
 
     startStopButton = new QPushButton("Start", this);
 
-    useEventCounterCheckbox = new QCheckBox("Use Event Counter", this);
-    eventCounterLabel = new QLabel("Event Count: 0", this);
+    useImageCounterCheckbox = new QCheckBox("Use Image Counter", this);
+    imageCounterLabel = new QLabel("Image Count: 0", this);
 
     logTextEdit = new QPlainTextEdit();
     logTextEdit->setReadOnly(true);
 
+    previewDisplay = new PreviewWidget();
+
     QGridLayout *layout = new QGridLayout;
-    layout->addWidget(startStopButton);
-    layout->addWidget(useEventCounterCheckbox);
-    layout->addWidget(eventCounterLabel);
-    layout->addWidget(logTextEdit);
+    layout->addWidget(startStopButton, 0, 0);
+    layout->addWidget(useImageCounterCheckbox, 1, 0);
+    layout->addWidget(imageCounterLabel, 2, 0);
+    layout->addWidget(logTextEdit, 3, 0);
+    layout->addWidget(previewDisplay, 0, 1, 0, 4);
 
     setMinimumSize(250, 400);
-
     setLayout(layout);
 
     connect(startStopButton, SIGNAL(clicked()), this, SLOT(startStopButton_Clicked()));
-    connect(useEventCounterCheckbox, SIGNAL(stateChanged(int)), this, SLOT(useEventCounterCheckbox_stateChanged()));
+    connect(useImageCounterCheckbox, SIGNAL(stateChanged(int)), this, SLOT(useImageCounterCheckbox_stateChanged()));
 }
 
 void GrabberConsoleWidget::setInterface(GrabberInterface *grabberinterface, GrabberThread *grabberThread)
@@ -35,10 +37,11 @@ void GrabberConsoleWidget::setInterface(GrabberInterface *grabberinterface, Grab
     _grabberThread = grabberThread;
 
     connect(_grabberinterface, SIGNAL(messageOutput(QString)), this, SLOT(messageOutput(QString)), Qt::QueuedConnection);
-    connect(_grabberinterface, SIGNAL(updateEventCounter(int)), this, SLOT(updateEventCounter(int)), Qt::QueuedConnection);
+    connect(_grabberinterface, SIGNAL(updateImageCounter(uint)), this, SLOT(updateImageCounter(uint)), Qt::QueuedConnection);
     connect(_grabberinterface, SIGNAL(grabberStatusChanged()), this, SLOT(grabberStatusChanged()), Qt::QueuedConnection);
+    connect(_grabberinterface, SIGNAL(updatePreviewDisplay()), this, SLOT(updatePreviewDisplay()), Qt::QueuedConnection);
 
-    useEventCounterCheckbox->setChecked(true);
+    useImageCounterCheckbox->setChecked(true);
 }
 
 void GrabberConsoleWidget::messageOutput(const QString& message)
@@ -62,13 +65,30 @@ void GrabberConsoleWidget::grabberStatusChanged()
         startStopButton->setText("Start");
 }
 
-void GrabberConsoleWidget::useEventCounterCheckbox_stateChanged()
+void GrabberConsoleWidget::useImageCounterCheckbox_stateChanged()
 {
-    _grabberinterface->setEventCounterUsage(useEventCounterCheckbox->checkState());
+    _grabberinterface->setImageCounterUsage(useImageCounterCheckbox->checkState());
 }
 
-void GrabberConsoleWidget::updateEventCounter(const int count)
+void GrabberConsoleWidget::updateImageCounter(const uint count)
 {
-    eventCounterLabel->setText("Event Count: " + QString::number(count , 5));
+    imageCounterLabel->setText("Image Count: " + QString::number(count , 5));
 }
+
+void GrabberConsoleWidget::updatePreviewDisplay()
+{
+    messageOutput("Update Display");
+
+    // Show the grabbed image in the OpenGL Widget
+}
+
+
+
+
+
+
+
+
+
+
 

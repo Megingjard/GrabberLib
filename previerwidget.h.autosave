@@ -1,0 +1,22 @@
+#ifndef PREVIERWIDGET_H
+#define PREVIERWIDGET_H
+
+#include <QGLWidget>
+
+class PrevierWidget : public QGLWidget
+{
+    Q_OBJECT
+public:
+    PrevierWidget(QObject *parent = 0);
+    
+signals:
+    
+public slots:
+    void animate();
+
+protected:
+    void paintEvent(QPaintEvent *event);
+
+};
+
+#endif // PREVIERWIDGET_H

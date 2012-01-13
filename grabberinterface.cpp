@@ -2,47 +2,30 @@
 #include "common.h"
 #include "common.c"
 #include "pdl_api.h"
+#include "pbl_api.h"
 #include "phx_api.h"
 #include "phx_os.h"
 
 #include <QtGui>
 #include <QThread>
 
-#define MAX_SZ_CHARS 256   /* Maximum string length */
-
+// global object pointer (needed for callback)
+GrabberInterface* global_grabberinterface;
 
 GrabberInterface::GrabberInterface(QObject *parent) :
     QObject(parent)
 {
     _isOpened = false;
-    _useEventCounter = false;
+    _useImageCounter = false;
+    resetImageCounter();
+
+    global_grabberinterface = this;
 }
 
 GrabberInterface::~GrabberInterface()
 {
     close();
 }
-
-static void handleInterruptEvents(tHandle hCamera, ui32 interruptMask, void *userParameter )
-{
-   EventContext *eventContext = (EventContext*) userParameter;
-
-   (void) hCamera;
-
-   if ( PHX_INTRPT_BUFFER_READY & interruptMask )
-       eventContext->nBufferReadyCount++;
-
-   if ( PHX_INTRPT_FIFO_OVERFLOW & interruptMask )
-       eventContext->fFifoOverFlow = TRUE;
-
-    // The callback routine may be called with more than 1 event flag set.
-    // Therefore all possible events must be handled here.
-
-   if ( PHX_INTRPT_FRAME_END & interruptMask )
-   {
-   }
-}
-
 
 //--------------------------------------------------------------------
 
@@ -60,7 +43,7 @@ void GrabberInterface::open(QString _cameraConfigFile)
     setState(oState);
 
     if (isOpened())
-        oState = livePicture();
+        oState = startGrabber();
 
     if (!oState)
         messageOutput(_lastError + "\nAborting...\n");
@@ -73,201 +56,217 @@ void GrabberInterface::close()
     setState(false);
 }
 
-void GrabberInterface::setState(bool isOpened)
+//-------------------- Error Handler functions -------------------------
+
+void errorHandler( const char* pszFnName, etStat eErrCode, const char* pszDescString )
 {
-    _isOpened = isOpened;
-    grabberStatusChanged();
+    // use of gloabal instance of the interface object
+    // Call the member function or signal
+    global_grabberinterface->grabberErrorHandler(pszFnName, eErrCode, pszDescString);
 }
 
-void GrabberInterface::setEventCounterUsage(bool useEventCounter)
+void GrabberInterface::grabberErrorHandler( const char* pszFnName, etStat eErrCode, const char* pszDescString )
 {
-    _useEventCounter = useEventCounter;
+    _lastError = "Phx Error: "
+            + QString::fromAscii(pszFnName, strlen(pszFnName)) + " : "
+            + QString::number(eErrCode) + " : "
+            + QString::fromAscii(pszDescString, strlen(pszDescString));
+
+    qDebug() << _lastError;
+
+    messageOutput(_lastError);
 }
 
-QString GrabberInterface::lastError() const
+//-------------------- Callback functions ------------------------------
+
+void callback( tHandle hCamera, ui32 dwInterruptMask, void *pvParams )
 {
-    return _lastError;
+    // use of gloabal instance of the interface object
+    // Call the member function or signal
+    global_grabberinterface->grabberCallack(hCamera, dwInterruptMask, pvParams);
 }
 
-bool GrabberInterface::isOpened() const
+void GrabberInterface::grabberCallack( tHandle hCamera, ui32 dwInterruptMask, void *pvParams )
 {
-    return _isOpened;
-}
+    EventContext *eventContext = (EventContext*) pvParams;
 
-//------ This function should be a member of GrabberInterface --------
-void grabberErrorHandler( const char* pszFnName, etStat eErrCode, const char* pszDescString )
-{
-    QString Error = "Phx Error: "
-                    + QString::fromAscii(pszFnName, strlen(pszFnName)) + " : "
-                    + QString::number(eErrCode) + " : "
-                    + QString::fromAscii(pszDescString, strlen(pszDescString));
+    stImageBuff sBuffer;
+    ui8 *pbData, bFirstPixel;
 
-    qDebug() << Error;
 
-    //messageOutput(_lastError + "\nAborting...\n");
+    if( PHX_INTRPT_BUFFER_READY & dwInterruptMask )
+    {
+        _ImageCounter++;
+
+        // Obtain the captured buffer information.
+
+        PHX_Acquire( hCamera, PHX_BUFFER_GET, &sBuffer );
+        pbData = (ui8*)sBuffer.pvAddress;
+
+
+        // ---------------------------------------------------------
+        // ------------ Processing the Image Data ------------------
+        // ---------------------------------------------------------
+
+        // Pointer to the first Pixel
+        bFirstPixel = *pbData;
+
+
+        qDebug() << "And the first pixel is: " + QString::number(bFirstPixel);
+
+        if (_useImageCounter)
+            updateImageCounter(_ImageCounter);
+
+        // ---------------------------------------------------------
+        // ---------------------------------------------------------
+        // ---------------------------------------------------------
+
+        //release the buffer ready for the capture of further image data.
+        PHX_Acquire( hCamera, PHX_BUFFER_RELEASE, NULL );
+    }
+
+    if ( PHX_INTRPT_FIFO_OVERFLOW & dwInterruptMask )
+        eventContext->fFifoOverFlow = TRUE;
 }
 
 bool GrabberInterface::configureGrabber()
 {
-   etStat         eStatus     = PHX_OK;
-   etParamValue   eParamValue;          // Parameter for use with PHX_ParameterSet/Get calls
+    etStat         eStatus     = PHX_OK;
+    etParamValue   eParamValue;          // Parameter for use with PHX_ParameterSet/Get calls
 
-   hCamera   = 0;
-   hDisplay  = 0;
-   hBuffer1  = 0;
-   hBuffer2  = 0;
+    hCamera = 0;
+    hBuffer1 = 0;
+    hBuffer2 = 0;
 
-   char *argv[0];
+    memset( &eventContext, 0, sizeof(eventContext));
 
-   PhxCommonParseCmd( 0, argv, &phxGrabberInfo );
-   PhxCommonKbInit();
+    phxGrabberInfo.eCamConfigLoad = (etCamConfigLoad) ( PHX_DIGITAL | PHX_ACQ_ONLY | PHX_CHANNEL_AUTO );
 
-   memset( &eventContext, 0, sizeof(eventContext));
+    // Allocate the board with the config file
+    eStatus = PHX_CameraConfigLoad( &hCamera,
+                                    cameraConfigFile.toAscii().data(),
+                                    phxGrabberInfo.eCamConfigLoad,
+                                    &errorHandler );
+    if ( PHX_OK != eStatus ) {
+        _lastError = "camera configuaration error";
+        return false;
+    }
 
-   phxGrabberInfo.eCamConfigLoad = (etCamConfigLoad) ( PHX_DIGITAL | PHX_ACQ_ONLY | PHX_CHANNEL_AUTO );
+    // Create two display buffers for double buffering
 
-   // Allocate the board with the config file
-   eStatus = PHX_CameraConfigLoad( &hCamera,
-                                   cameraConfigFile.toAscii().data(),
-                                   phxGrabberInfo.eCamConfigLoad,
-                                   &grabberErrorHandler );
-   if ( PHX_OK != eStatus ) {
-       _lastError = "camera configuaration error";
-       return false;
-   }
+    eStatus = PBL_BufferCreate(&hBuffer1,
+                               PBL_BUFF_SYSTEM_MEM_DIRECT, //PBL_BUFF_VIDCARD_MEM_DIRECT,
+                               0,
+                               hCamera,
+                               &errorHandler );
+    if ( PHX_OK != eStatus ) {
+        _lastError = "buffer allocation error: buffer 1";
+        return false;
+    }
 
-   // Create display with a NULL hWnd, this will automatically create an image window.
-   eStatus = PDL_DisplayCreate( &hDisplay,
-                                NULL,
-                                hCamera,
-                                &grabberErrorHandler );
-   if ( PHX_OK != eStatus ) {
-       _lastError = "display creation error";
-       return false;
-   }
+    eStatus = PBL_BufferCreate(&hBuffer2,
+                               PBL_BUFF_SYSTEM_MEM_DIRECT,
+                               0,
+                               hCamera,
+                               &errorHandler );
+    if ( PHX_OK != eStatus ) {
+        _lastError = "buffer allocation error: buffer 2";
+        return false;
+    }
 
-   // Create two display buffers for double buffering
-   eStatus = PDL_BufferCreate( &hBuffer1,
-                               hDisplay,
-                               (etBufferMode)PDL_BUFF_SYSTEM_MEM_DIRECT );
-   if ( PHX_OK != eStatus ) {
-       _lastError = "buffer allocation error: buffer 1";
-       return false;
-   }
+    ui32 dwBuffWidth;
+    ui32 dwBuffHeight;
+    ui32 dwBuffStride;
 
-   eStatus = PDL_BufferCreate( &hBuffer2,
-                               hDisplay,
-                               (etBufferMode)PDL_BUFF_SYSTEM_MEM_DIRECT );
-   if ( PHX_OK != eStatus ) {
-       _lastError = "buffer allocation error: buffer 2";
-       return false;
-   }
+    // Obtain the required buffer dimensions from Phoenix.
+    PHX_ParameterGet( hCamera, PHX_ROI_XLENGTH_SCALED, &dwBuffWidth );
+    PHX_ParameterGet( hCamera, PHX_ROI_YLENGTH_SCALED, &dwBuffHeight );
 
-   // Initialise the display, this associates the display buffers with the display
-   eStatus =  PDL_DisplayInit( hDisplay );
-   if ( PHX_OK != eStatus ) {
-       _lastError = "display initialization error";
-       return false;
-   }
+    // Convert width (in pixels) to stride (in bytes).
+    dwBuffStride = dwBuffWidth; // If we assume Y8 capture format
 
-   int AcquireNr = 2;
-   eStatus = PHX_ParameterSet( hCamera, PHX_ACQ_NUM_IMAGES, &AcquireNr );
-   if ( PHX_OK != eStatus ) {
-       _lastError = "Parameter error: Acquired number of images";
-       return false;
-   }
+    // Set the height and stride required.
+    PBL_BufferParameterSet( hBuffer1, PBL_BUFF_HEIGHT, &dwBuffHeight );
+    PBL_BufferParameterSet( hBuffer1, PBL_BUFF_STRIDE, &dwBuffStride );
+    PBL_BufferParameterSet( hBuffer2, PBL_BUFF_HEIGHT, &dwBuffHeight );
+    PBL_BufferParameterSet( hBuffer2, PBL_BUFF_STRIDE, &dwBuffStride );
 
-   // Enable FIFO Overflow events
-   eParamValue = PHX_INTRPT_FIFO_OVERFLOW;
-   eStatus = PHX_ParameterSet( hCamera, PHX_INTRPT_SET, &eParamValue );
-   if ( PHX_OK != eStatus ) {
-       _lastError = "Parameter error: FIFO Overflow interpretor";
-       return false;
-   }
-
-   // Setup an event context
-   eStatus = PHX_ParameterSet( hCamera, PHX_EVENT_CONTEXT, (void *) &eventContext );
-   if ( PHX_OK != eStatus ) {
-       _lastError = "Parameter error: Custom Event Context";
-       return false;
-   }
-
-   // Now start capture, using the callback method
-   eStatus = PHX_Acquire( hCamera, PHX_START, (void*) handleInterruptEvents );
-   if ( PHX_OK != eStatus ) {
-       _lastError = "starting capture error";
-       return false;
-   }
+    // Initialise each buffer. This creates the buffers in system memory.
+    PBL_BufferInit( hBuffer1 );
+    PBL_BufferInit( hBuffer2 );
 
 
-   return true;
+    // Build our array of image buffers.
+    // PBL_BUFF_ADDRESS returns the address of the first pixel of image data.
+
+    void *dwParamValue;
+
+    PBL_BufferParameterGet( hBuffer1, PBL_BUFF_ADDRESS, &dwParamValue );
+    asImageBuffs[ 0 ].pvAddress = (void*)dwParamValue;
+    asImageBuffs[ 0 ].pvContext = (void*)hBuffer1;
+
+    PBL_BufferParameterGet( hBuffer2, PBL_BUFF_ADDRESS, &dwParamValue );
+    asImageBuffs[ 1 ].pvAddress = (void*)dwParamValue;
+    asImageBuffs[ 1 ].pvContext = (void*)hBuffer2;
+    asImageBuffs[ 2 ].pvAddress = NULL;
+    asImageBuffs[ 2 ].pvContext = NULL;
+
+    // Tell Phoenix we are using two buffers.
+    ui32 AcquireNr = 2;
+    eStatus = PHX_ParameterSet( hCamera, PHX_ACQ_NUM_IMAGES, &AcquireNr );
+    if ( PHX_OK != eStatus ) {
+        _lastError = "Parameter error: Acquired number of images";
+        return false;
+    }
+
+    /* These are 'direct' buffers, so we must tell Phoenix about them
+   * so that it can capture data directly into them.
+   */
+    PHX_ParameterSet( hCamera,
+                      PHX_DST_PTRS_VIRT,
+                      (void *) asImageBuffs );
+
+    eParamValue = PHX_DST_PTR_USER_VIRT;
+    PHX_ParameterSet( hCamera,
+                      (etParam)(PHX_DST_PTR_TYPE | PHX_CACHE_FLUSH | PHX_FORCE_REWRITE ),
+                      (void *) &eParamValue );
+
+    // Enable FIFO Overflow events
+    eParamValue = PHX_INTRPT_FIFO_OVERFLOW;
+    eStatus = PHX_ParameterSet( hCamera, PHX_INTRPT_SET, &eParamValue );
+    if ( PHX_OK != eStatus ) {
+        _lastError = "Parameter error: FIFO Overflow interpretor";
+        return false;
+    }
+
+    // Setup an event context
+    eStatus = PHX_ParameterSet( hCamera, PHX_EVENT_CONTEXT, (void *) &eventContext );
+    if ( PHX_OK != eStatus ) {
+        _lastError = "Parameter error: Custom Event Context";
+        return false;
+    }
+
+    return true;
 }
 
-bool GrabberInterface::livePicture()
+bool GrabberInterface::startGrabber()
 {
     etStat         eStatus     = PHX_OK;
-    ui32           nBufferReadyLast = 0; // Previous BufferReady count value
 
     messageOutput("Starting Live Picture!...\n");
-    updateEventCounter(0);
+    resetImageCounter();
+
+    // Now start capture, using the callback method
+    PHX_Acquire( hCamera, PHX_START, (void*) callback);
+    if ( PHX_OK != eStatus ) {
+        _lastError = "starting capture error";
+        return false;
+    }
 
     // Continue processing data until the user presses "Stop" or Phoenix detects a FIFO overflow
     while(isOpened() && !eventContext.fFifoOverFlow)
     {
-       _PHX_SleepMs(10);
-
-       // If there are any buffers waiting to display, then process them
-       if ( nBufferReadyLast != eventContext.nBufferReadyCount ) {
-          stImageBuff stBuffer;
-          int nStaleBufferCount;
-
-          /* If the processing is too slow to keep up with acquisition,
-           * then there may be more than 1 buffer ready to process.
-           * The application can either be designed to process all buffers
-           * knowing that it will catch up, or as here, throw away all but the
-           * latest
-           */
-          nStaleBufferCount = eventContext.nBufferReadyCount - nBufferReadyLast;
-          nBufferReadyLast += nStaleBufferCount;
-
-          // Throw away all but the last image
-          if( nStaleBufferCount > 1 )
-          {
-             do
-             {
-                eStatus = PHX_Acquire( hCamera, PHX_BUFFER_RELEASE, NULL );
-                if ( PHX_OK != eStatus ) {
-                    _lastError = "butter releasing error";
-                    return false;
-                }
-                nStaleBufferCount--;
-             }
-             while ( nStaleBufferCount > 1 );
-          }
-
-          // Get info for the last acquired buffer
-          eStatus = PHX_Acquire( hCamera, PHX_BUFFER_GET, &stBuffer );
-          if ( PHX_OK != eStatus ) {
-              _lastError = "information error: last acquired buffer";
-              return false;
-          }
-
-          // stBuffer.pvContext --> member variable to pass a display buffer handle
-          // stBuffer.pvAddress --> access to the video data
-
-          // Paint the image on the display
-          PDL_BufferPaint( (tPHX)stBuffer.pvContext );
-
-          if (_useEventCounter)
-              updateEventCounter((int) eventContext.nBufferReadyCount);
-
-          // Release the buffer ready for further image data
-          eStatus = PHX_Acquire( hCamera, PHX_BUFFER_RELEASE, NULL );
-          if ( PHX_OK != eStatus ) {
-              _lastError = "butter releasing error";
-              return false;
-          }
-       }
+        _PHX_SleepMs(10);
     }
 
     /* In this simple example we abort the processing loop on an error condition (FIFO overflow).
@@ -284,7 +283,7 @@ bool GrabberInterface::livePicture()
 
 void GrabberInterface::releaseGrabber()
 {
-    updateEventCounter((int) eventContext.nBufferReadyCount);
+    updateImageCounter(_ImageCounter);
 
     // stop all captures
     if ( hCamera ) PHX_Acquire( hCamera, PHX_ABORT, NULL );
@@ -293,15 +292,39 @@ void GrabberInterface::releaseGrabber()
     if ( hBuffer1 ) PDL_BufferDestroy( (tPHX*) &hBuffer1 );
     if ( hBuffer2 ) PDL_BufferDestroy( (tPHX*) &hBuffer2 );
 
-    // free display
-    if ( hDisplay ) PDL_DisplayDestroy( (tPHX*) &hDisplay );
-
     // release grabber board
     if ( hCamera ) PHX_CameraRelease( &hCamera );
 
     PhxCommonKbClose();
     close();
     messageOutput("Grabber released\n\n - - - - - - - - - - - - - - - \n");
-
 }
 
+//-------------------- Parameter functions ------------------------------
+
+void GrabberInterface::setState(bool isOpened)
+{
+    _isOpened = isOpened;
+    grabberStatusChanged();
+}
+
+void GrabberInterface::setImageCounterUsage(bool useImageCounter)
+{
+    _useImageCounter = useImageCounter;
+}
+
+QString GrabberInterface::lastError() const
+{
+    return _lastError;
+}
+
+bool GrabberInterface::isOpened() const
+{
+    return _isOpened;
+}
+
+void GrabberInterface::resetImageCounter()
+{
+    _ImageCounter = 0;
+    updateImageCounter(_ImageCounter);
+}
